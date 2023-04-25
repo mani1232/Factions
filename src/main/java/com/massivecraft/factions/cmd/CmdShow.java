@@ -16,7 +16,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -115,7 +114,12 @@ public class CmdShow extends FCommand {
             }
         }
         if (context.fPlayer != null && this.groupPresent()) {
-            new GroupGetter(messageList, context.fPlayer, faction).runTaskAsynchronously(FactionsPlugin.getInstance());
+            Runnable runnable = new GroupGetter(messageList, context.fPlayer, faction);//.runTaskAsynchronously(FactionsPlugin.getInstance());
+            if (FactionsPlugin.isFolia()) {
+                FactionsPlugin.getInstance().getServer().getGlobalRegionScheduler().execute(FactionsPlugin.getInstance(), runnable);
+            } else {
+                Bukkit.getScheduler().runTaskAsynchronously(FactionsPlugin.getInstance(), runnable);
+            }
         } else {
             this.sendMessages(messageList, context.sender, faction, context.fPlayer);
         }
@@ -196,7 +200,7 @@ public class CmdShow extends FCommand {
         return false;
     }
 
-    private class GroupGetter extends BukkitRunnable {
+    private class GroupGetter implements Runnable {
         private final List<String> messageList;
         private final FPlayer sender;
         private final Faction faction;
@@ -215,11 +219,16 @@ public class CmdShow extends FCommand {
             for (OfflinePlayer player : this.players) {
                 map.put(player.getUniqueId(), FactionsPlugin.getInstance().getPrimaryGroup(player));
             }
-            new Sender(this.messageList, this.sender, this.faction, map).runTask(FactionsPlugin.getInstance());
+            Runnable runnable = new Sender(this.messageList, this.sender, this.faction, map);//.runTask(FactionsPlugin.getInstance());
+            if (FactionsPlugin.isFolia()) {
+                FactionsPlugin.getInstance().getServer().getGlobalRegionScheduler().execute(FactionsPlugin.getInstance(), runnable);
+            } else {
+                Bukkit.getScheduler().runTask(FactionsPlugin.getInstance(), runnable);
+            }
         }
     }
 
-    private class Sender extends BukkitRunnable {
+    private class Sender implements Runnable {
         private final List<String> messageList;
         private final FPlayer sender;
         private final Faction faction;

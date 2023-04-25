@@ -3,7 +3,7 @@ package com.massivecraft.factions.util;
 import com.massivecraft.factions.FactionsPlugin;
 import com.massivecraft.factions.config.file.MainConfig;
 import com.massivecraft.factions.perms.Selectable;
-import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.Bukkit;
 
 import java.util.ListIterator;
 
@@ -23,7 +23,12 @@ public class AutoLeaveTask implements Runnable {
         }
 
         task = this.factions ? new AutoLeaveProcessFactionTask() : new AutoLeaveProcessTask();
-        task.runTaskTimer(FactionsPlugin.getInstance(), 1, 1);
+        if (FactionsPlugin.isFolia()) {
+            FactionsPlugin.getInstance().getServer().getGlobalRegionScheduler().runAtFixedRate(FactionsPlugin.getInstance(), scheduledTask -> task.run() , 1, 1);
+        } else {
+            Bukkit.getScheduler().runTaskTimer(FactionsPlugin.getInstance(), task, 1, 1);
+        }
+        //task.runTaskTimer(FactionsPlugin.getInstance(), 1, 1);
 
         // maybe setting has been changed? if so, restart this task at new rate
         if (this.rate != FactionsPlugin.getInstance().conf().factions().other().getAutoLeaveRoutineRunsEveryXMinutes() ||
@@ -32,7 +37,7 @@ public class AutoLeaveTask implements Runnable {
         }
     }
 
-    public static abstract class AutoLeaveProcessor<T extends Selectable> extends BukkitRunnable {
+    public static abstract class AutoLeaveProcessor<T extends Selectable> implements Runnable {
         protected transient boolean readyToGo = true;
         protected transient boolean finished;
         protected transient ListIterator<T> iterator;
@@ -44,7 +49,7 @@ public class AutoLeaveTask implements Runnable {
             readyToGo = false;
             finished = true;
 
-            this.cancel();
+            //this.cancel();
         }
 
         @Override

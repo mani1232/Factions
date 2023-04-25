@@ -1,24 +1,15 @@
 package com.massivecraft.factions.scoreboards;
 
-import com.massivecraft.factions.FPlayer;
-import com.massivecraft.factions.FPlayers;
-import com.massivecraft.factions.Faction;
-import com.massivecraft.factions.Factions;
-import com.massivecraft.factions.FactionsPlugin;
+import com.massivecraft.factions.*;
 import com.massivecraft.factions.config.file.MainConfig;
 import com.massivecraft.factions.tag.Tag;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.Team;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class FTeamWrapper {
     private static final Map<Faction, FTeamWrapper> wrappers = new HashMap<>();
@@ -46,13 +37,15 @@ public class FTeamWrapper {
 
 
         if (updating.add(faction)) {
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    updating.remove(faction);
-                    applyUpdates(faction);
-                }
-            }.runTask(FactionsPlugin.getInstance());
+            Runnable runnable = () -> {
+                updating.remove(faction);
+                applyUpdates(faction);
+            };//.runTask(FactionsPlugin.getInstance());
+            if (FactionsPlugin.isFolia()) {
+                FactionsPlugin.getInstance().getServer().getGlobalRegionScheduler().execute(FactionsPlugin.getInstance(), runnable);
+            } else {
+                Bukkit.getScheduler().runTask(FactionsPlugin.getInstance(), runnable);
+            }
         }
     }
 

@@ -1,13 +1,9 @@
 package com.massivecraft.factions.util;
 
 import com.massivecraft.factions.FactionsPlugin;
-import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.Bukkit;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.concurrent.locks.Lock;
@@ -84,19 +80,21 @@ public class DiscUtil {
                 lock.unlock();
             }
         } else {
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    lock.lock();
-                    try {
-                        write(file, content);
-                    } catch (IOException e) {
-                        FactionsPlugin.getInstance().getLogger().log(Level.SEVERE, "Failed to write file " + file.getAbsolutePath(), e);
-                    } finally {
-                        lock.unlock();
-                    }
+            Runnable runnable = () -> {
+                lock.lock();
+                try {
+                    write(file, content);
+                } catch (IOException e) {
+                    FactionsPlugin.getInstance().getLogger().log(Level.SEVERE, "Failed to write file " + file.getAbsolutePath(), e);
+                } finally {
+                    lock.unlock();
                 }
-            }.runTaskAsynchronously(FactionsPlugin.getInstance());
+            };//.runTaskAsynchronously(FactionsPlugin.getInstance());
+            if (FactionsPlugin.isFolia()) {
+                FactionsPlugin.getInstance().getServer().getGlobalRegionScheduler().execute(FactionsPlugin.getInstance(), runnable);
+            } else {
+                Bukkit.getScheduler().runTaskAsynchronously(FactionsPlugin.getInstance(), runnable);
+            }
         }
 
         return true; // don't really care but for some reason this is a boolean.

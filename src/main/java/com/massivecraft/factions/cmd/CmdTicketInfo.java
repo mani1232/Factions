@@ -13,7 +13,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginDescriptionFile;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -149,7 +148,7 @@ public class CmdTicketInfo extends FCommand {
             }
         }
 
-        new BukkitRunnable() {
+        Runnable runnable = new  Runnable() {
             private String getFile(Path file) {
                 try {
                     return new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
@@ -160,6 +159,7 @@ public class CmdTicketInfo extends FCommand {
 
             @Override
             public void run() {
+                Runnable runnable1 = null;
                 try {
                     Path dataPath = FactionsPlugin.getInstance().getDataFolder().toPath();
                     String spigotConf = getFile(Paths.get("spigot.yml"));
@@ -210,32 +210,34 @@ public class CmdTicketInfo extends FCommand {
                     }
                     TicketResponse response = gson.fromJson(content.toString(), TicketResponse.class);
 
-                    new BukkitRunnable() {
-                        @Override
-                        public void run() {
-                            if (response.success) {
-                                String url = response.message;
-                                audience.sendMessage(Component.text().color(NamedTextColor.YELLOW).content("Share this URL: " + url).clickEvent(ClickEvent.openUrl(url)));
-                                if (context.sender instanceof Player) {
-                                    FactionsPlugin.getInstance().getLogger().info("Share this URL: " + url);
-                                }
-                            } else {
-                                audience.sendMessage(Component.text().color(NamedTextColor.RED).content("ERROR! Could not generate ticket info. See console for why."));
-                                FactionsPlugin.getInstance().getLogger().warning("Received: " + response.message);
+                    runnable1 = () -> {
+                        if (response.success) {
+                            String url1 = response.message;
+                            audience.sendMessage(Component.text().color(NamedTextColor.YELLOW).content("Share this URL: " + url1).clickEvent(ClickEvent.openUrl(url1)));
+                            if (context.sender instanceof Player) {
+                                FactionsPlugin.getInstance().getLogger().info("Share this URL: " + url1);
                             }
+                        } else {
+                            audience.sendMessage(Component.text().color(NamedTextColor.RED).content("ERROR! Could not generate ticket info. See console for why."));
+                            FactionsPlugin.getInstance().getLogger().warning("Received: " + response.message);
                         }
-                    }.runTask(FactionsPlugin.getInstance());
+                    };//.runTask(FactionsPlugin.getInstance());
                 } catch (Exception e) {
                     FactionsPlugin.getInstance().getLogger().log(Level.SEVERE, "Failed to execute ticketinfo command", e);
-                    new BukkitRunnable() {
-                        @Override
-                        public void run() {
-                            audience.sendMessage(Component.text().color(NamedTextColor.RED).content("ERROR! Could not generate ticket info. See console for why."));
-                        }
-                    }.runTask(FactionsPlugin.getInstance());
+                    runnable1 = () -> audience.sendMessage(Component.text().color(NamedTextColor.RED).content("ERROR! Could not generate ticket info. See console for why."));//.runTask(FactionsPlugin.getInstance());
+                }
+                if (FactionsPlugin.isFolia()) {
+                    FactionsPlugin.getInstance().getServer().getGlobalRegionScheduler().execute(FactionsPlugin.getInstance(), runnable1);
+                } else {
+                    Bukkit.getScheduler().runTask(FactionsPlugin.getInstance(), runnable1);
                 }
             }
-        }.runTaskAsynchronously(FactionsPlugin.getInstance());
+        };//.runTaskAsynchronously(FactionsPlugin.getInstance());
+        if (FactionsPlugin.isFolia()) {
+            FactionsPlugin.getInstance().getServer().getGlobalRegionScheduler().execute(FactionsPlugin.getInstance(), runnable);
+        } else {
+            Bukkit.getScheduler().runTaskAsynchronously(FactionsPlugin.getInstance(), runnable);
+        }
         audience.sendMessage(Component.text().color(NamedTextColor.YELLOW).content("Now running..."));
     }
 

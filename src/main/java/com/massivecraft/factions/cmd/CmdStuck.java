@@ -15,7 +15,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
 
 public class CmdStuck extends FCommand {
 
@@ -55,7 +54,8 @@ public class CmdStuck extends FCommand {
                 return;
             }
 
-            final int id = new BukkitRunnable() {
+            final int id = 1;
+            Runnable runnable = new Runnable() {
 
                 @Override
                 public void run() {
@@ -110,7 +110,13 @@ public class CmdStuck extends FCommand {
                         }
                     };
                 }
-            }.runTaskLater(FactionsPlugin.getInstance(), delay * 20).getTaskId();
+            };//.runTaskLater(FactionsPlugin.getInstance(), delay * 20).getTaskId();
+
+            if (FactionsPlugin.isFolia()) {
+                FactionsPlugin.getInstance().getServer().getGlobalRegionScheduler().runDelayed(FactionsPlugin.getInstance(), scheduledTask -> runnable.run(), delay * 20);
+            } else {
+                Bukkit.getScheduler().runTaskLater(FactionsPlugin.getInstance(), runnable, delay * 20);
+            }
 
             FactionsPlugin.getInstance().getTimers().put(player.getUniqueId(), System.currentTimeMillis() + (delay * 1000));
             long wait = FactionsPlugin.getInstance().getTimers().get(player.getUniqueId()) - System.currentTimeMillis();

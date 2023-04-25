@@ -23,10 +23,7 @@ import com.massivecraft.factions.struct.Permission;
 import com.massivecraft.factions.util.TL;
 import com.massivecraft.factions.util.TextUtil;
 import com.massivecraft.factions.util.VisualizeUtil;
-import org.bukkit.GameMode;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -51,7 +48,6 @@ import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.NumberConversions;
 
 import java.util.HashMap;
@@ -151,15 +147,16 @@ public class FactionsPlayerListener extends AbstractListener {
 
     private void initFactionWorld(FPlayer me) {
         // Check for Faction announcements. Let's delay this so they actually see it.
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (me.isOnline()) {
-                    me.getFaction().sendUnreadAnnouncements(me);
-                }
+        Runnable runnable = () -> {
+            if (me.isOnline()) {
+                me.getFaction().sendUnreadAnnouncements(me);
             }
-        }.runTaskLater(FactionsPlugin.getInstance(), 33L); // Don't ask me why.
-
+        };//.runTaskLater(FactionsPlugin.getInstance(), 33L); // Don't ask me why.
+        if (FactionsPlugin.isFolia()) {
+            FactionsPlugin.getInstance().getServer().getRegionScheduler().runDelayed(FactionsPlugin.getInstance(), me.getPlayer().getLocation() , scheduledTask -> runnable.run(), 33L);
+        } else {
+            Bukkit.getScheduler().runTaskLater(FactionsPlugin.getInstance(), runnable, 33L);
+        }
         if (FactionsPlugin.getInstance().conf().scoreboard().constant().isEnabled()) {
             FScoreboard.init(me);
             FScoreboard.get(me).setDefaultSidebar(new FDefaultSidebar());
@@ -234,16 +231,18 @@ public class FactionsPlayerListener extends AbstractListener {
         }
         if (event.getNewGameMode() == GameMode.SURVIVAL) {
             FPlayer me = FPlayers.getInstance().getByPlayer(event.getPlayer());
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    if (me.isFlying()) {
-                        me.getPlayer().setAllowFlight(true);
-                        me.getPlayer().setFlying(true);
-                    }
-                    me.flightCheck();
-                }
-            }.runTask(this.plugin);
+           Runnable runnable = () -> {
+               if (me.isFlying()) {
+                   me.getPlayer().setAllowFlight(true);
+                   me.getPlayer().setFlying(true);
+               }
+               me.flightCheck();
+           };//.runTask(this.plugin);
+            if (FactionsPlugin.isFolia()) {
+                FactionsPlugin.getInstance().getServer().getRegionScheduler().run(FactionsPlugin.getInstance(), me.getPlayer().getLocation() , scheduledTask -> runnable.run());
+            } else {
+                Bukkit.getScheduler().runTask(FactionsPlugin.getInstance(), runnable);
+            }
         }
     }
 
@@ -590,12 +589,12 @@ public class FactionsPlayerListener extends AbstractListener {
                 (facConf.landRaidControl().power().isRespawnHomeFromNoPowerLossWorlds() || !facConf.landRaidControl().power().getWorldsNoPowerLoss().contains(event.getPlayer().getWorld().getName()))) {
             event.setRespawnLocation(home);
         }
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                me.flightCheck();
-            }
-        }.runTask(FactionsPlugin.getInstance());
+        Runnable runnable = me::flightCheck;//.runTask(FactionsPlugin.getInstance());
+        if (FactionsPlugin.isFolia()) {
+            FactionsPlugin.getInstance().getServer().getRegionScheduler().run(FactionsPlugin.getInstance(), me.getPlayer().getLocation() , scheduledTask -> runnable.run());
+        } else {
+            Bukkit.getScheduler().runTask(FactionsPlugin.getInstance(), runnable);
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGH)
