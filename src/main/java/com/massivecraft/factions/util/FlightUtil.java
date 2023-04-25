@@ -8,7 +8,6 @@ import com.massivecraft.factions.struct.Permission;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.Collection;
 
@@ -22,12 +21,22 @@ public class FlightUtil {
         double enemyCheck = FactionsPlugin.getInstance().conf().commands().fly().getRadiusCheck() * 20;
         if (enemyCheck > 0) {
             enemiesTask = new EnemiesTask();
-            enemiesTask.runTaskTimer(FactionsPlugin.getInstance(), 0, (long) enemyCheck);
+            if (FactionsPlugin.isFolia()) {
+                FactionsPlugin.getInstance().getServer().getGlobalRegionScheduler().runAtFixedRate(FactionsPlugin.getInstance(), scheduledTask -> enemiesTask.run(), 1, (long) enemyCheck);
+            } else {
+                Bukkit.getScheduler().runTaskTimer(FactionsPlugin.getInstance(), enemiesTask, 0, (long) enemyCheck);
+            }
         }
 
         double spawnRate = FactionsPlugin.getInstance().conf().commands().fly().particles().getSpawnRate() * 20;
         if (spawnRate > 0) {
-            new ParticleTrailsTask().runTaskTimer(FactionsPlugin.getInstance(), 0, (long) spawnRate);
+            ParticleTrailsTask particleTrailsTask = new ParticleTrailsTask();
+            if (FactionsPlugin.isFolia()) {
+                FactionsPlugin.getInstance().getServer().getGlobalRegionScheduler().runAtFixedRate(FactionsPlugin.getInstance(), scheduledTask -> particleTrailsTask.run(), 1, (long) enemyCheck);
+            } else {
+                Bukkit.getScheduler().runTaskTimer(FactionsPlugin.getInstance(), particleTrailsTask, 0, (long) enemyCheck);
+            }
+
         }
     }
 
@@ -47,7 +56,7 @@ public class FlightUtil {
         }
     }
 
-    public class EnemiesTask extends BukkitRunnable {
+    public class EnemiesTask implements Runnable {
 
         @Override
         public void run() {
@@ -94,7 +103,7 @@ public class FlightUtil {
         }
     }
 
-    public class ParticleTrailsTask extends BukkitRunnable {
+    public class ParticleTrailsTask implements Runnable {
 
         private final int amount;
         private final float speed;

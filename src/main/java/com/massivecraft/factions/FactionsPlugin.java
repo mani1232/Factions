@@ -13,26 +13,11 @@ import com.massivecraft.factions.event.FactionCreateEvent;
 import com.massivecraft.factions.event.FactionEvent;
 import com.massivecraft.factions.event.FactionRelationEvent;
 import com.massivecraft.factions.event.FactionsPluginRegistrationTimeEvent;
-import com.massivecraft.factions.integration.ClipPlaceholderAPIManager;
-import com.massivecraft.factions.integration.Econ;
-import com.massivecraft.factions.integration.Essentials;
-import com.massivecraft.factions.integration.IWorldguard;
-import com.massivecraft.factions.integration.IntegrationManager;
-import com.massivecraft.factions.integration.LWC;
-import com.massivecraft.factions.integration.LuckPerms;
-import com.massivecraft.factions.integration.VaultPerms;
-import com.massivecraft.factions.integration.Worldguard6;
-import com.massivecraft.factions.integration.Worldguard7;
+import com.massivecraft.factions.integration.*;
 import com.massivecraft.factions.integration.dynmap.EngineDynmap;
 import com.massivecraft.factions.integration.permcontext.ContextManager;
 import com.massivecraft.factions.landraidcontrol.LandRaidControl;
-import com.massivecraft.factions.listeners.FactionsBlockListener;
-import com.massivecraft.factions.listeners.FactionsChatListener;
-import com.massivecraft.factions.listeners.FactionsEntityListener;
-import com.massivecraft.factions.listeners.FactionsExploitListener;
-import com.massivecraft.factions.listeners.FactionsPlayerListener;
-import com.massivecraft.factions.listeners.OneEightPlusListener;
-import com.massivecraft.factions.listeners.OneFourteenPlusListener;
+import com.massivecraft.factions.listeners.*;
 import com.massivecraft.factions.listeners.versionspecific.PortalHandler;
 import com.massivecraft.factions.listeners.versionspecific.PortalListenerLegacy;
 import com.massivecraft.factions.listeners.versionspecific.PortalListener_114;
@@ -41,20 +26,7 @@ import com.massivecraft.factions.perms.PermSelectorRegistry;
 import com.massivecraft.factions.perms.PermSelectorTypeAdapter;
 import com.massivecraft.factions.perms.PermissibleActionRegistry;
 import com.massivecraft.factions.struct.ChatMode;
-import com.massivecraft.factions.util.AutoLeaveTask;
-import com.massivecraft.factions.util.EnumTypeAdapter;
-import com.massivecraft.factions.util.FlightUtil;
-import com.massivecraft.factions.util.LazyLocation;
-import com.massivecraft.factions.util.MapFLocToStringSetTypeAdapter;
-import com.massivecraft.factions.util.Metrics;
-import com.massivecraft.factions.util.MyLocationTypeAdapter;
-import com.massivecraft.factions.util.PermUtil;
-import com.massivecraft.factions.util.Persist;
-import com.massivecraft.factions.util.SeeChunkUtil;
-import com.massivecraft.factions.util.TL;
-import com.massivecraft.factions.util.TextUtil;
-import com.massivecraft.factions.util.TitleAPI;
-import com.massivecraft.factions.util.WorldUtil;
+import com.massivecraft.factions.util.*;
 import com.massivecraft.factions.util.material.MaterialDb;
 import com.massivecraft.factions.util.particle.BukkitParticleProvider;
 import com.massivecraft.factions.util.particle.PacketParticleProvider;
@@ -78,17 +50,8 @@ import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredListener;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitRunnable;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
+import java.io.*;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
@@ -97,16 +60,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -125,8 +79,14 @@ public class FactionsPlugin extends JavaPlugin implements FactionsAPI {
     private static FactionsPlugin instance;
     private static int mcVersion;
 
+    private static boolean isFolia;
+
     public static FactionsPlugin getInstance() {
         return instance;
+    }
+
+    public static boolean isFolia() {
+        return isFolia;
     }
 
     public static int getMCVersion() {
@@ -206,6 +166,12 @@ public class FactionsPlugin extends JavaPlugin implements FactionsAPI {
     // Everything is pain.
     @Override
     public void onLoad() {
+        try {
+            Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
+            isFolia = true;
+        } catch (ClassNotFoundException e) {
+            isFolia = false;
+        }
         IntegrationManager.onLoad(this);
         this.tryEssXMigrationOnLoad();
         try {
@@ -449,7 +415,12 @@ public class FactionsPlugin extends JavaPlugin implements FactionsAPI {
         // Register recurring tasks
         if (saveTask == null && this.conf().factions().other().getSaveToFileEveryXMinutes() > 0.0) {
             long saveTicks = (long) (20 * 60 * this.conf().factions().other().getSaveToFileEveryXMinutes()); // Approximately every 30 min by default
-            saveTask = Bukkit.getServer().getScheduler().scheduleSyncRepeatingTask(this, new SaveTask(this), saveTicks, saveTicks);
+            if (isFolia) {
+                saveTask = 1;
+                this.getServer().getGlobalRegionScheduler().runAtFixedRate(this, task -> new SaveTask(this), saveTicks, saveTicks);
+            } else {
+                saveTask = Bukkit.getServer().getScheduler().scheduleSyncRepeatingTask(this, new SaveTask(this), saveTicks, saveTicks);
+            }
         }
 
         int loadedPlayers = FPlayers.getInstance().load();
@@ -504,7 +475,11 @@ public class FactionsPlugin extends JavaPlugin implements FactionsAPI {
         if (conf().commands().seeChunk().isParticles()) {
             double delay = Math.floor(conf().commands().seeChunk().getParticleUpdateTime() * 20);
             seeChunkUtil = new SeeChunkUtil();
-            seeChunkUtil.runTaskTimer(this, 0, (long) delay);
+            if (isFolia) {
+                this.getServer().getGlobalRegionScheduler().runAtFixedRate(this, scheduledTask -> seeChunkUtil.run(), 1, (long) delay);
+            } else {
+                Bukkit.getScheduler().runTaskTimer(this, seeChunkUtil, 0, (long) delay);
+            }
         }
         // End run before registering event handlers.
 
@@ -550,77 +525,84 @@ public class FactionsPlugin extends JavaPlugin implements FactionsAPI {
         // Integration time
         getServer().getPluginManager().registerEvents(integrationManager = new IntegrationManager(this), this);
 
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                getServer().getPluginManager().callEvent(new FactionsPluginRegistrationTimeEvent());
+        Runnable runnable1 = () -> {
+            getServer().getPluginManager().callEvent(new FactionsPluginRegistrationTimeEvent());
 
-                try {
-                    Method close = PermissibleActionRegistry.class.getDeclaredMethod("close");
-                    close.setAccessible(true);
-                    close.invoke(null);
-                    close = PermSelectorRegistry.class.getDeclaredMethod("close");
-                    close.setAccessible(true);
-                    close.invoke(null);
-                } catch (Exception e) {
-                    getLogger().log(Level.SEVERE, "Failed to close registries", e);
-                }
-                if (FactionsPlugin.this.gottaSlapEssentials) {
-                    FactionsPlugin.this.getServer().dispatchCommand(FactionsPlugin.this.getServer().getConsoleSender(), "baltop force");
-                }
-
-                Econ.setup();
-                vaultPerms = new VaultPerms();
-                cmdBase.done();
-                // Grand metrics adventure!
-                setupMetrics();
-                getLogger().removeHandler(handler);
-                startupLog = startupBuilder.toString();
-                startupExceptionLog = startupExceptionBuilder.toString();
+            try {
+                Method close = PermissibleActionRegistry.class.getDeclaredMethod("close");
+                close.setAccessible(true);
+                close.invoke(null);
+                close = PermSelectorRegistry.class.getDeclaredMethod("close");
+                close.setAccessible(true);
+                close.invoke(null);
+            } catch (Exception e) {
+                getLogger().log(Level.SEVERE, "Failed to close registries", e);
             }
-        }.runTask(this);
+            if (FactionsPlugin.this.gottaSlapEssentials) {
+                FactionsPlugin.this.getServer().dispatchCommand(FactionsPlugin.this.getServer().getConsoleSender(), "baltop force");
+            }
+
+            Econ.setup();
+            vaultPerms = new VaultPerms();
+            cmdBase.done();
+            // Grand metrics adventure!
+            setupMetrics();
+            getLogger().removeHandler(handler);
+            startupLog = startupBuilder.toString();
+            startupExceptionLog = startupExceptionBuilder.toString();
+        };
+
+        if (isFolia()) {
+            this.getServer().getGlobalRegionScheduler().run(this, scheduledTask -> runnable1.run());
+        } else {
+            Bukkit.getScheduler().runTask(this, runnable1);
+        }
 
         getLogger().info("=== Ready to go after " + (System.currentTimeMillis() - timeEnableStart) + "ms! ===");
         this.loadSuccessful = true;
 
         this.updateCheck = new Gson().toJson(update);
         if (!likesCats) return;
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                try {
-                    URL url = new URL("https://update.plugin.party/check");
-                    HttpURLConnection con = (HttpURLConnection) url.openConnection();
-                    con.setRequestMethod("POST");
-                    con.setDoOutput(true);
-                    con.setRequestProperty("Content-Type", "application/json");
-                    con.setRequestProperty("Accept", "application/json");
-                    try (OutputStream out = con.getOutputStream()) {
-                        out.write(FactionsPlugin.this.updateCheck.getBytes(StandardCharsets.UTF_8));
-                    }
-                    String reply = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8)).lines().collect(Collectors.joining("\n"));
-                    Response response = new Gson().fromJson(reply, Response.class);
-                    if (response.isSuccess()) {
-                        if (response.isUpdateAvailable()) {
-                            FactionsPlugin.this.updateResponse = response;
-                            if (response.isUrgent()) {
-                                FactionsPlugin.this.getServer().getOnlinePlayers().forEach(FactionsPlugin.this::updateNotification);
-                            }
-                            FactionsPlugin.this.getLogger().warning("Update available: " + response.getLatestVersion() + (response.getMessage() == null ? "" : (" - " + response.getMessage())));
-                        }
-                    } else {
-                        if (response.getMessage().equals("INVALID")) {
-                            this.cancel();
-                        } else if (response.getMessage().equals("TOO_FAST")) {
-                            // Nothing for now
-                        } else {
-                            FactionsPlugin.this.getLogger().warning("Failed to check for updates: " + response.getMessage());
-                        }
-                    }
-                } catch (Exception ignored) {
+        Runnable runnable2 = () -> {
+            try {
+                URL url = new URL("https://update.plugin.party/check");
+                HttpURLConnection con = (HttpURLConnection) url.openConnection();
+                con.setRequestMethod("POST");
+                con.setDoOutput(true);
+                con.setRequestProperty("Content-Type", "application/json");
+                con.setRequestProperty("Accept", "application/json");
+                try (OutputStream out = con.getOutputStream()) {
+                    out.write(FactionsPlugin.this.updateCheck.getBytes(StandardCharsets.UTF_8));
                 }
+                String reply = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8)).lines().collect(Collectors.joining("\n"));
+                Response response = new Gson().fromJson(reply, Response.class);
+                if (response.isSuccess()) {
+                    if (response.isUpdateAvailable()) {
+                        FactionsPlugin.this.updateResponse = response;
+                        if (response.isUrgent()) {
+                            FactionsPlugin.this.getServer().getOnlinePlayers().forEach(FactionsPlugin.this::updateNotification);
+                        }
+                        FactionsPlugin.this.getLogger().warning("Update available: " + response.getLatestVersion() + (response.getMessage() == null ? "" : (" - " + response.getMessage())));
+                    }
+                } else {
+                    if (response.getMessage().equals("INVALID")) {
+                        //this.cancel();
+                        return;
+                    } else if (response.getMessage().equals("TOO_FAST")) {
+                        // Nothing for now
+                    } else {
+                        FactionsPlugin.this.getLogger().warning("Failed to check for updates: " + response.getMessage());
+                    }
+                }
+            } catch (Exception ignored) {
             }
-        }.runTaskTimerAsynchronously(this, 1, 20 /* ticks */ * 60 /* seconds in a minute */ * 60 /* minutes in an hour*/);
+        };
+
+        if (isFolia()) {
+            this.getServer().getGlobalRegionScheduler().runAtFixedRate(this, scheduledTask -> runnable2.run(), 1, 20 /* ticks */ * 60 /* seconds in a minute */ * 60 /* minutes in an hour*/);
+        } else {
+            Bukkit.getScheduler().runTaskTimerAsynchronously(this, runnable2,1, 20 /* ticks */ * 60 /* seconds in a minute */ * 60 /* minutes in an hour*/);
+        }
     }
 
     private int intOr(String in, int or) {
@@ -1034,14 +1016,18 @@ public class FactionsPlugin extends JavaPlugin implements FactionsAPI {
 
     @Override
     public void onDisable() {
-        if (autoLeaveTask != null) {
-            this.getServer().getScheduler().cancelTask(autoLeaveTask);
-            autoLeaveTask = null;
-        }
+        if (isFolia) {
+            this.getServer().getGlobalRegionScheduler().cancelTasks(this);
+        } else {
+            if (autoLeaveTask != null) {
+                this.getServer().getScheduler().cancelTask(autoLeaveTask);
+                autoLeaveTask = null;
+            }
 
-        if (saveTask != null) {
-            this.getServer().getScheduler().cancelTask(saveTask);
-            saveTask = null;
+            if (saveTask != null) {
+                this.getServer().getScheduler().cancelTask(saveTask);
+                saveTask = null;
+            }
         }
         // only save data if plugin actually loaded successfully
         if (loadSuccessful) {
@@ -1062,12 +1048,21 @@ public class FactionsPlugin extends JavaPlugin implements FactionsAPI {
             if (!restartIfRunning) {
                 return;
             }
-            this.getServer().getScheduler().cancelTask(autoLeaveTask);
+            if (isFolia()) {
+                this.getServer().getGlobalRegionScheduler().cancelTasks(this);
+            } else {
+                this.getServer().getScheduler().cancelTask(autoLeaveTask);
+            }
         }
 
         if (this.conf().factions().other().getAutoLeaveRoutineRunsEveryXMinutes() > 0.0) {
             long ticks = (long) (20 * 60 * this.conf().factions().other().getAutoLeaveRoutineRunsEveryXMinutes());
-            autoLeaveTask = getServer().getScheduler().scheduleSyncRepeatingTask(this, new AutoLeaveTask(), ticks, ticks);
+            if (isFolia()) {
+                autoLeaveTask = 1;
+                this.getServer().getGlobalRegionScheduler().runAtFixedRate(this, task -> new AutoLeaveTask(), ticks, ticks);
+            } else {
+                autoLeaveTask = getServer().getScheduler().scheduleSyncRepeatingTask(this, new AutoLeaveTask(), ticks, ticks);
+            }
         }
     }
 

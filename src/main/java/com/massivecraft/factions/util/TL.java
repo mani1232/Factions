@@ -1026,7 +1026,7 @@ public enum TL {
 
     private String path;
     private final String def;
-    private static YamlConfiguration LANG;
+    private static YamlConfiguration LANG = new YamlConfiguration();
     public static SimpleDateFormat sdf;
 
     /**
